@@ -7,6 +7,7 @@ package com.lwansbrough.RCTCamera;
 import android.content.Context;
 import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
+import android.util.Log;
 import android.view.TextureView;
 import android.os.AsyncTask;
 
@@ -15,6 +16,7 @@ import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -27,14 +29,14 @@ import com.google.zxing.PlanarYUVLuminanceSource;
 import com.google.zxing.Result;
 import com.google.zxing.common.HybridBinarizer;
 
-class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceTextureListener, Camera.PreviewCallback {
+class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceTextureListener, Camera.PreviewCallback ,Camera.AutoFocusCallback{
     private int _cameraType;
     private int _captureMode;
     private SurfaceTexture _surfaceTexture;
     private boolean _isStarting;
     private boolean _isStopping;
     private Camera _camera;
-
+    private int autoFocusCount ;
     // concurrency lock for barcode scanner to avoid flooding the runtime
     public static volatile boolean barcodeScannerTaskLock = false;
 
@@ -45,7 +47,8 @@ class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceText
         super(context);
         this.setSurfaceTextureListener(this);
         this._cameraType = type;
-        this.initBarcodeReader(RCTCamera.getInstance().getBarCodeTypes());
+        if(RCTCamera.getInstance().isBarcodeScannerEnabled())
+            this.initBarcodeReader(RCTCamera.getInstance().getBarCodeTypes());
     }
 
     @Override
@@ -196,8 +199,12 @@ class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceText
             return BarcodeFormat.EAN_13;
         } else if ("ean8".equals(c)) {
             return BarcodeFormat.EAN_8;
+        } else if ("ean8".equals(c)) {
+            return BarcodeFormat.EAN_8;
         } else if ("qr".equals(c)) {
             return BarcodeFormat.QR_CODE;
+        } else if ("ean8".equals(c)) {
+            return BarcodeFormat.EAN_8;
         } else if ("pdf417".equals(c)) {
             return BarcodeFormat.PDF_417;
         } else if ("upce".equals(c)) {
@@ -234,6 +241,7 @@ class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceText
      * Initialize the barcode decoder.
      */
     private void initBarcodeReader(List<String> barCodeTypes) {
+
         EnumMap<DecodeHintType, Object> hints = new EnumMap<>(DecodeHintType.class);
         EnumSet<BarcodeFormat> decodeFormats = EnumSet.noneOf(BarcodeFormat.class);
 
@@ -245,7 +253,9 @@ class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceText
                 }
             }
         }
-
+        if(decodeFormats.isEmpty()){
+            decodeFormats.add(BarcodeFormat.QR_CODE) ;
+        }
         hints.put(DecodeHintType.POSSIBLE_FORMATS, decodeFormats);
         _multiFormatReader.setHints(hints);
     }
@@ -259,9 +269,23 @@ class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceText
      */
     public void onPreviewFrame(byte[] data, Camera camera) {
         if (RCTCamera.getInstance().isBarcodeScannerEnabled() && !RCTCameraViewFinder.barcodeScannerTaskLock) {
+
             RCTCameraViewFinder.barcodeScannerTaskLock = true;
             new ReaderAsyncTask(camera, data).execute();
+            autoFocusCount ++ ;
+            if(autoFocusCount >= 8)
+            {
+                autoFocusCount = 0 ;
+                camera.autoFocus(this);
+
+            }
         }
+
+    }
+
+    @Override
+    public void onAutoFocus(boolean success, Camera camera) {
+        Log.e("ReactNativeJS" , "auto focus = " + success ) ;
     }
 
     private class ReaderAsyncTask extends AsyncTask<Void, Void, Void> {
@@ -296,12 +320,12 @@ class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceText
               height = size.width;
               imageData = rotated;
             }
-
+            boolean qrSuccess = false ;
             try {
                 PlanarYUVLuminanceSource source = new PlanarYUVLuminanceSource(imageData, width, height, 0, 0, width, height, false);
                 BinaryBitmap bitmap = new BinaryBitmap(new HybridBinarizer(source));
                 Result result = _multiFormatReader.decodeWithState(bitmap);
-
+                qrSuccess = true ;
                 ReactContext reactContext = RCTCameraModule.getReactContextSingleton();
                 WritableMap event = Arguments.createMap();
                 event.putString("data", result.getText());
@@ -312,7 +336,8 @@ class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceText
                 // meh
             } finally {
                 _multiFormatReader.reset();
-                RCTCameraViewFinder.barcodeScannerTaskLock = false;
+                if(!qrSuccess)
+                    RCTCameraViewFinder.barcodeScannerTaskLock = false;
                 return null;
             }
         }

@@ -1,6 +1,7 @@
 package com.lwansbrough.RCTCamera;
 
 import android.support.annotation.Nullable;
+import android.util.Log;
 
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.uimanager.*;
@@ -42,6 +43,7 @@ public class RCTCameraViewManager extends ViewGroupManager<RCTCameraView> {
 
     @ReactProp(name = "type")
     public void setType(RCTCameraView view, int type) {
+        Log.e("ReactNativeJS" , "setType ? " + type ) ;
         view.setCameraType(type);
     }
 
@@ -62,6 +64,7 @@ public class RCTCameraViewManager extends ViewGroupManager<RCTCameraView> {
 
     @ReactProp(name = "orientation")
     public void setOrientation(RCTCameraView view, int orientation) {
+        Log.e("ReactNativeJS" , "setOrientation? " + orientation ) ;
         view.setOrientation(orientation);
     }
 
@@ -72,6 +75,7 @@ public class RCTCameraViewManager extends ViewGroupManager<RCTCameraView> {
 
     @ReactProp(name = "barcodeScannerEnabled")
     public void setBarcodeScannerEnabled(RCTCameraView view, boolean barcodeScannerEnabled) {
+        Log.e("ReactNativeJS" , "setBarcodeScannerEnabled ? " + barcodeScannerEnabled ) ;
         view.setBarcodeScannerEnabled(barcodeScannerEnabled);
     }
 

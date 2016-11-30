@@ -177,6 +177,7 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
                 return Collections.unmodifiableMap(new HashMap<String, Object>() {
                     {
                         // @TODO add barcode types
+
                     }
                 });
             }
@@ -537,6 +538,12 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
         }
     }
 
+    @ReactMethod
+    public void shouldQR(boolean shouldNot){
+        Log.e("ReactNativeJS" , "shouldQR = " + shouldNot ) ;
+        RCTCameraViewFinder.barcodeScannerTaskLock = shouldNot ;
+
+    }
     @ReactMethod
     public void capture(final ReadableMap options, final Promise promise) {
         int orientation = options.hasKey("orientation") ? options.getInt("orientation") : RCTCamera.getInstance().getOrientation();
