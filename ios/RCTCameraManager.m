@@ -365,7 +365,7 @@ RCT_EXPORT_METHOD(stopCapture) {
     [self.movieFileOutput stopRecording];
   }
 }
-RCT_EXPORT_METHOD(shouldQR:(BOOL) shouldNot{
+RCT_EXPORT_METHOD(shouldQR:(BOOL) shouldNot){
     self.notReadQR = shouldNot ;
 }
 RCT_EXPORT_METHOD(getFOV:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject) {
