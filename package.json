@@ -1,11 +1,10 @@
 {
-  "name": "react-native-camera-withqrscanner",
+  "name": "react-native-camera",
   "repository": {
     "type": "git",
     "url": "https://github.com/chinaczy/react-native-camera.git"
   },
-  "main": "index.js",
-  "version": "0.5.1",
+  "version": "0.4.0",
   "description": "A Camera component for React Native. Also reads barcodes.",
   "author": "Lochlan Wansbrough <lochie@live.com> (http://lwansbrough.com)",
   "nativePackage": true,

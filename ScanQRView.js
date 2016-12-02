@@ -14,7 +14,7 @@ import {
   Easing , 
   Alert 
 } from 'react-native';
-import Camera from 'react-native-camera';
+import Camera from './index';
 export default class ScanQRView extends Component {
   
   constructor(props){
