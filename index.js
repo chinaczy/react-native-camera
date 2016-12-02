@@ -11,7 +11,6 @@ import {
 
 const CameraManager = NativeModules.CameraManager || NativeModules.CameraModule;
 const CAMERA_REF = 'camera';
-
 function convertNativeProps(props) {
   const newProps = { ...props };
   if (typeof props.aspect === 'string') {
@@ -201,7 +200,9 @@ export default class Camera extends Component {
       this.props.onBarCodeRead(data)
     }
   };
-
+  shouldQR(){
+    CameraManager.shouldQR(false);
+  }
   capture(options) {
     const props = convertNativeProps(this.props);
     options = {

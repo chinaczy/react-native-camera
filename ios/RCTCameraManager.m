@@ -365,7 +365,9 @@ RCT_EXPORT_METHOD(stopCapture) {
     [self.movieFileOutput stopRecording];
   }
 }
-
+RCT_EXPORT_METHOD(shouldQR:(BOOL) shouldNot{
+    self.notReadQR = shouldNot ;
+}
 RCT_EXPORT_METHOD(getFOV:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject) {
   NSArray *devices = [AVCaptureDevice devices];
   AVCaptureDevice *frontCamera;
@@ -858,7 +860,9 @@ didFinishRecordingToOutputFileAtURL:(NSURL *)outputFileURL
 }
 
 - (void)captureOutput:(AVCaptureOutput *)captureOutput didOutputMetadataObjects:(NSArray *)metadataObjects fromConnection:(AVCaptureConnection *)connection {
-
+    if(self.notReadQR){
+        return ;
+    }
   for (AVMetadataMachineReadableCodeObject *metadata in metadataObjects) {
     for (id barcodeType in self.barCodeTypes) {
       if ([metadata.type isEqualToString:barcodeType]) {
@@ -879,7 +883,7 @@ didFinishRecordingToOutputFileAtURL:(NSURL *)outputFileURL
             }
           }
         };
-
+          self.notReadQR = true ;
         [self.bridge.eventDispatcher sendAppEventWithName:@"CameraBarCodeRead" body:event];
       }
     }
