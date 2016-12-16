@@ -51,6 +51,12 @@ public class RCTCameraView extends ViewGroup {
     }
 
     @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        RCTCameraViewFinder.barcodeScannerTaskLock = false ;
+    }
+
+    @Override
     public void onViewAdded(View child) {
         if (this._viewFinder == child) return;
         // remove and readd view to make sure it is in the back.

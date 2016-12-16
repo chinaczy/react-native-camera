@@ -271,13 +271,12 @@ class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceText
         if (RCTCamera.getInstance().isBarcodeScannerEnabled() && !RCTCameraViewFinder.barcodeScannerTaskLock) {
 
             RCTCameraViewFinder.barcodeScannerTaskLock = true;
-            new ReaderAsyncTask(camera, data).execute();
+            new ReaderAsyncTask(camera.getParameters().getPreviewSize(), data).execute();
             autoFocusCount ++ ;
             if(autoFocusCount >= 8)
             {
                 autoFocusCount = 0 ;
                 camera.autoFocus(this);
-
             }
         }
 
@@ -290,10 +289,10 @@ class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceText
 
     private class ReaderAsyncTask extends AsyncTask<Void, Void, Void> {
         private byte[] imageData;
-        private final Camera camera;
+        private final Camera.Size size;
 
-        ReaderAsyncTask(Camera camera, byte[] imageData) {
-            this.camera = camera;
+        ReaderAsyncTask(Camera.Size size, byte[] imageData) {
+            this.size = size;
             this.imageData = imageData;
         }
 
@@ -303,7 +302,6 @@ class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceText
                 return null;
             }
 
-            Camera.Size size = camera.getParameters().getPreviewSize();
 
             int width = size.width;
             int height = size.height;
