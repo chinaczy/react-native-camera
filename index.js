@@ -200,6 +200,10 @@ export default class Camera extends Component {
       this.props.onBarCodeRead(data)
     }
   };
+  stopCamera(){
+    if(Platform.OS == "android")
+      CameraManager.stopCamera();
+  }
   shouldQR(){
     CameraManager.shouldQR(false);
   }

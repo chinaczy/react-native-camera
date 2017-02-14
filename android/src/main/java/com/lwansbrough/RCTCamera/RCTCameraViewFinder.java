@@ -180,6 +180,7 @@ class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceText
             } catch (Exception e) {
                 e.printStackTrace();
             } finally {
+                _camera = null ;
                 _isStopping = false;
             }
         }

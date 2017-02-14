@@ -537,6 +537,31 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
             }
         }
     }
+    @ReactMethod
+    public void stopCamera(){
+
+        Camera camera = RCTCamera.getInstance().acquireCameraInstance(RCT_CAMERA_TYPE_FRONT);
+        
+        if(camera!=null){
+
+            camera.stopPreview();
+            camera.setPreviewCallback(null);
+            RCTCamera.getInstance().releaseCameraInstance(RCT_CAMERA_TYPE_FRONT);
+            camera.release();
+            camera = null;
+        }
+
+        camera = RCTCamera.getInstance().acquireCameraInstance(RCT_CAMERA_TYPE_BACK);
+        if(camera!=null){
+
+            camera.stopPreview();
+            camera.setPreviewCallback(null);
+            RCTCamera.getInstance().releaseCameraInstance(RCT_CAMERA_TYPE_BACK);
+            camera.release();
+            camera = null;
+        }
+
+    }
 
     @ReactMethod
     public void shouldQR(boolean shouldNot){
@@ -589,80 +614,82 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
         final Boolean shouldMirror = options.hasKey("mirrorImage") && options.getBoolean("mirrorImage");
 
         RCTCamera.getInstance().adjustCameraRotationToDeviceOrientation(options.getInt("type"), deviceOrientation);
-        camera.takePicture(null, null, new Camera.PictureCallback() {
-            @Override
-            public void onPictureTaken(byte[] data, Camera camera) {
+        try {
+            camera.takePicture(null, null, new Camera.PictureCallback() {
+                @Override
+                public void onPictureTaken(byte[] data, Camera camera) {
 
-                if (shouldMirror) {
-                    data = mirrorImage(data);
-                    if (data == null) {
-                        promise.reject("Error mirroring image");
+                    if (shouldMirror) {
+                        data = mirrorImage(data);
+                        if (data == null) {
+                            promise.reject("Error mirroring image");
+                        }
+                    }
+
+                    camera.stopPreview();
+                    camera.startPreview();
+                    WritableMap response = new WritableNativeMap();
+                    switch (options.getInt("target")) {
+                        case RCT_CAMERA_CAPTURE_TARGET_MEMORY:
+                            String encoded = Base64.encodeToString(data, Base64.DEFAULT);
+                            response.putString("data", encoded);
+                            promise.resolve(response);
+                            break;
+                        case RCT_CAMERA_CAPTURE_TARGET_CAMERA_ROLL: {
+                            File cameraRollFile = getOutputCameraRollFile(MEDIA_TYPE_IMAGE);
+                            if (cameraRollFile == null) {
+                                promise.reject("Error creating media file.");
+                                return;
+                            }
+
+                            Throwable error = writeDataToFile(data, cameraRollFile);
+                            if (error != null) {
+                                promise.reject(error);
+                                return;
+                            }
+
+                            addToMediaStore(cameraRollFile.getAbsolutePath());
+                            response.putString("path", Uri.fromFile(cameraRollFile).toString());
+                            promise.resolve(response);
+                            break;
+                        }
+                        case RCT_CAMERA_CAPTURE_TARGET_DISK: {
+                            File pictureFile = getOutputMediaFile(MEDIA_TYPE_IMAGE);
+                            if (pictureFile == null) {
+                                promise.reject("Error creating media file.");
+                                return;
+                            }
+
+                            Throwable error = writeDataToFile(data, pictureFile);
+                            if (error != null) {
+                                promise.reject(error);
+                                return;
+                            }
+
+                            response.putString("path", Uri.fromFile(pictureFile).toString());
+                            promise.resolve(response);
+                            break;
+                        }
+                        case RCT_CAMERA_CAPTURE_TARGET_TEMP: {
+                            File tempFile = getTempMediaFile(MEDIA_TYPE_IMAGE);
+                            if (tempFile == null) {
+                                promise.reject("Error creating media file.");
+                                return;
+                            }
+
+                            Throwable error = writeDataToFile(data, tempFile);
+                            if (error != null) {
+                                promise.reject(error);
+                            }
+
+                            response.putString("path", Uri.fromFile(tempFile).toString());
+                            promise.resolve(response);
+                            break;
+                        }
                     }
                 }
-
-                camera.stopPreview();
-                camera.startPreview();
-                WritableMap response = new WritableNativeMap();
-                switch (options.getInt("target")) {
-                    case RCT_CAMERA_CAPTURE_TARGET_MEMORY:
-                        String encoded = Base64.encodeToString(data, Base64.DEFAULT);
-                        response.putString("data", encoded);
-                        promise.resolve(response);
-                        break;
-                    case RCT_CAMERA_CAPTURE_TARGET_CAMERA_ROLL: {
-                        File cameraRollFile = getOutputCameraRollFile(MEDIA_TYPE_IMAGE);
-                        if (cameraRollFile == null) {
-                            promise.reject("Error creating media file.");
-                            return;
-                        }
-
-                        Throwable error = writeDataToFile(data, cameraRollFile);
-                        if (error != null) {
-                            promise.reject(error);
-                            return;
-                        }
-
-                        addToMediaStore(cameraRollFile.getAbsolutePath());
-                        response.putString("path", Uri.fromFile(cameraRollFile).toString());
-                        promise.resolve(response);
-                        break;
-                    }
-                    case RCT_CAMERA_CAPTURE_TARGET_DISK: {
-                        File pictureFile = getOutputMediaFile(MEDIA_TYPE_IMAGE);
-                        if (pictureFile == null) {
-                            promise.reject("Error creating media file.");
-                            return;
-                        }
-
-                        Throwable error = writeDataToFile(data, pictureFile);
-                        if (error != null) {
-                            promise.reject(error);
-                            return;
-                        }
-
-                        response.putString("path", Uri.fromFile(pictureFile).toString());
-                        promise.resolve(response);
-                        break;
-                    }
-                    case RCT_CAMERA_CAPTURE_TARGET_TEMP: {
-                        File tempFile = getTempMediaFile(MEDIA_TYPE_IMAGE);
-                        if (tempFile == null) {
-                            promise.reject("Error creating media file.");
-                            return;
-                        }
-
-                        Throwable error = writeDataToFile(data, tempFile);
-                        if (error != null) {
-                            promise.reject(error);
-                        }
-
-                        response.putString("path", Uri.fromFile(tempFile).toString());
-                        promise.resolve(response);
-                        break;
-                    }
-                }
-            }
-        });
+            });
+        }catch (Exception e){}
     }
 
     @ReactMethod
