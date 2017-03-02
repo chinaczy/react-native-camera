@@ -207,6 +207,9 @@ export default class Camera extends Component {
   shouldQR(){
     CameraManager.shouldQR(false);
   }
+  changeOrientation(orientation){
+    CameraManager.changeOrientation(orientation);
+  }
   capture(options) {
     const props = convertNativeProps(this.props);
     options = {

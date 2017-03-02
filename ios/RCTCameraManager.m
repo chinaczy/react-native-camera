@@ -34,10 +34,10 @@ RCT_EXPORT_MODULE();
     self.previewLayer = [AVCaptureVideoPreviewLayer layerWithSession:self.session];
     self.previewLayer.needsDisplayOnBoundsChange = YES;
   #endif
-
   if(!self.camera){
     self.camera = [[RCTCamera alloc] initWithManager:self bridge:self.bridge];
   }
+    NSLog(@"camera view orientation = %d",self.orientation ) ;
   return self.camera;
 }
 
@@ -120,7 +120,12 @@ RCT_EXPORT_MODULE();
            };
 }
 
-RCT_EXPORT_VIEW_PROPERTY(orientation, NSInteger);
+RCT_CUSTOM_VIEW_PROPERTY(orientation, NSInteger,RCTCamera){
+    NSInteger ori = [RCTConvert NSInteger:json];
+    self.orientation = ori ;
+    NSLog(@"camera view orientation props = %d",self.orientation ) ;
+    [self changeOrientation:ori] ;
+}
 RCT_EXPORT_VIEW_PROPERTY(defaultOnFocusComponent, BOOL);
 RCT_EXPORT_VIEW_PROPERTY(onFocusChanged, BOOL);
 RCT_EXPORT_VIEW_PROPERTY(onZoomChanged, BOOL);
@@ -343,7 +348,8 @@ RCT_EXPORT_METHOD(checkAudioAuthorizationStatus:(RCTPromiseResolveBlock)resolve
 }
 
 RCT_EXPORT_METHOD(changeOrientation:(NSInteger)orientation) {
-  [self setOrientation:orientation];
+    [self setOrientation:orientation];
+    [self.camera setOrientation:orientation];
 }
 
 RCT_EXPORT_METHOD(capture:(NSDictionary *)options
@@ -415,6 +421,7 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
     }
 
     AVCaptureStillImageOutput *stillImageOutput = [[AVCaptureStillImageOutput alloc] init];
+    
     if ([self.session canAddOutput:stillImageOutput])
     {
       stillImageOutput.outputSettings = @{AVVideoCodecKey : AVVideoCodecJPEG};
@@ -445,7 +452,7 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
         [strongSelf.session startRunning];
       });
     }]];
-
+    self.previewLayer.connection.videoOrientation = self.orientation ;
     [self.session startRunning];
   });
 }
@@ -898,6 +905,7 @@ didFinishRecordingToOutputFileAtURL:(NSURL *)outputFileURL
 
   for (AVCaptureDevice *device in devices)
   {
+    
     if ([device position] == position)
     {
       captureDevice = device;

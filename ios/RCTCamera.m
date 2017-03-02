@@ -29,8 +29,7 @@
 
 - (void)setOrientation:(NSInteger)orientation
 {
-  [self.manager changeOrientation:orientation];
-
+  NSLog(@"setOrientation...%d",orientation);
   if (orientation == RCTCameraOrientationAuto) {
     [self changePreviewOrientation:[UIApplication sharedApplication].statusBarOrientation];
     [[NSNotificationCenter defaultCenter] addObserver:self  selector:@selector(orientationChanged:)    name:UIDeviceOrientationDidChangeNotification  object:nil];
@@ -71,7 +70,7 @@
     UIPinchGestureRecognizer *pinchGesture = [[UIPinchGestureRecognizer alloc] initWithTarget:self action:@selector(handlePinchToZoomRecognizer:)];
     [self addGestureRecognizer:pinchGesture];
     [self.manager initializeCaptureSessionInput:AVMediaTypeVideo];
-    [self.manager startSession];
+  //  [self.manager startSession];
     _multipleTouches = NO;
     _onFocusChanged = NO;
     _defaultOnFocusComponent = YES;
@@ -86,6 +85,7 @@
   [super layoutSubviews];
   self.manager.previewLayer.frame = self.bounds;
   [self setBackgroundColor:[UIColor blackColor]];
+    [self.manager startSession];
   [self.layer insertSublayer:self.manager.previewLayer atIndex:0];
 }
 
@@ -182,8 +182,11 @@
 - (void)changePreviewOrientation:(NSInteger)orientation
 {
     dispatch_async(self.manager.sessionQueue, ^{
-        if (self.manager.previewLayer.connection.isVideoOrientationSupported) {
+        //if (self.manager.previewLayer.connection.isVideoOrientationSupported)
+        {
+            NSLog(@"supported ..");
             self.manager.previewLayer.connection.videoOrientation = orientation;
+            [self.manager.previewLayer layoutIfNeeded];
         }
     });
 }

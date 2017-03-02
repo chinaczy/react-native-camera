@@ -7,5 +7,5 @@
 @interface RCTCamera : UIView
 
 - (id)initWithManager:(RCTCameraManager*)manager bridge:(RCTBridge *)bridge;
-
+-(void)setOrientation:(NSInteger) orientation ;
 @end
