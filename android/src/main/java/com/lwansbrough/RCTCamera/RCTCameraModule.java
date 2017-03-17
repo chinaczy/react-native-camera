@@ -11,6 +11,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
 import android.hardware.Camera;
 import android.media.CamcorderProfile;
+import android.media.ExifInterface;
 import android.media.MediaActionSound;
 import android.media.MediaRecorder;
 import android.media.MediaScannerConnection;
@@ -587,8 +588,49 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
             captureWithOrientation(options, promise, orientation);
         }
     }
-
-    private void captureWithOrientation(final ReadableMap options, final Promise promise, int deviceOrientation) {
+    /** 旋转图片
+    * @param angle
+    * @param bitmap
+    * @return Bitmap
+    */
+    public static Bitmap rotaingImageView(int angle , Bitmap bitmap) {
+        //旋转图片 动作
+        Matrix matrix = new Matrix();
+        matrix.postRotate(angle);
+        System.out.println("angle2=" + angle);
+        // 创建新的图片
+        Bitmap resizedBitmap = Bitmap.createBitmap(bitmap, 0, 0,
+                bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+        return resizedBitmap;
+    }
+    /**
+     * 读取图片属性：旋转的角度
+     * @param path 图片绝对路径
+     * @return degree旋转的角度
+     */
+    public static int readPictureDegree(String path) {
+        int degree  = 0;
+        try {
+            ExifInterface exifInterface = new ExifInterface(path);
+            int orientation = exifInterface.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
+            Log.e("xblj","readPictureDegree orientation =  " + orientation ) ;
+            switch (orientation) {
+                case ExifInterface.ORIENTATION_ROTATE_90:
+                    degree = 90;
+                    break;
+                case ExifInterface.ORIENTATION_ROTATE_180:
+                    degree = 180;
+                    break;
+                case ExifInterface.ORIENTATION_ROTATE_270:
+                    degree = 270;
+                    break;
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return degree;
+    }
+    private void captureWithOrientation(final ReadableMap options, final Promise promise, final int deviceOrientation) {
         Camera camera = RCTCamera.getInstance().acquireCameraInstance(options.getInt("type"));
         if (null == camera) {
             promise.reject("No camera found.");
@@ -625,9 +667,11 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
                             promise.reject("Error mirroring image");
                         }
                     }
-
                     camera.stopPreview();
                     camera.startPreview();
+                //    data = rotateBitmap(data);
+                    data = compressBitmapBytes(data , deviceOrientation);
+
                     WritableMap response = new WritableNativeMap();
                     switch (options.getInt("target")) {
                         case RCT_CAMERA_CAPTURE_TARGET_MEMORY:
@@ -690,6 +734,63 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
                 }
             });
         }catch (Exception e){}
+    }
+
+    private byte[] rotateBitmap(byte[] data) {
+        Bitmap temp = BitmapFactory.decodeByteArray(data , 0 , data.length ) ;
+        File file = new File(getCurrentActivity().getCacheDir() , "temp_img.jpg");
+        FileOutputStream outStream = null;
+        try {
+            outStream = new FileOutputStream(file);
+
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+        temp.compress(Bitmap.CompressFormat.JPEG , 80 ,outStream ) ;
+        try {
+            outStream.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        temp.recycle();
+        int degree = readPictureDegree(file.getPath()) ;
+        Log.e("xblj","picture degree = " + degree ) ;
+        if(degree > 0 ){
+            temp = BitmapFactory.decodeFile(file.getPath());
+            Bitmap rotateBmp = rotaingImageView(degree,temp);
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            rotateBmp.compress(Bitmap.CompressFormat.JPEG,100 , outputStream);
+            data = outputStream.toByteArray() ;
+            try {
+                outputStream.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            rotateBmp.recycle();
+        }
+        file.delete() ;
+        return data ;
+    }
+
+    private byte [] compressBitmapBytes(byte []bytes , int orientation ){
+        Bitmap tempBmp = BitmapFactory.decodeByteArray(bytes,0,bytes.length);
+        if(orientation == RCT_CAMERA_ORIENTATION_PORTRAIT && tempBmp.getWidth()>tempBmp.getHeight()){
+            Bitmap temp = rotaingImageView(90 , tempBmp ) ;
+            tempBmp.recycle();
+            tempBmp = temp ;
+        }
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+        tempBmp.compress(Bitmap.CompressFormat.JPEG , 30 , outputStream);
+        byte []result = outputStream.toByteArray() ;
+        try {
+            outputStream.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        tempBmp.recycle();
+        return  result;
+
     }
 
     @ReactMethod

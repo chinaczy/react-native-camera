@@ -123,8 +123,11 @@ RCT_EXPORT_MODULE();
 RCT_CUSTOM_VIEW_PROPERTY(orientation, NSInteger,RCTCamera){
     NSInteger ori = [RCTConvert NSInteger:json];
     self.orientation = ori ;
+    if(ori != RCTCameraOrientationAuto){
+        [self changeOrientation:ori] ;
+    }
     NSLog(@"camera view orientation props = %d",self.orientation ) ;
-    [self changeOrientation:ori] ;
+    
 }
 RCT_EXPORT_VIEW_PROPERTY(defaultOnFocusComponent, BOOL);
 RCT_EXPORT_VIEW_PROPERTY(onFocusChanged, BOOL);
@@ -577,7 +580,8 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
 #else
       [[self.stillImageOutput connectionWithMediaType:AVMediaTypeVideo] setVideoOrientation:orientation];
 
-      [self.stillImageOutput captureStillImageAsynchronouslyFromConnection:[self.stillImageOutput connectionWithMediaType:AVMediaTypeVideo] completionHandler:^(CMSampleBufferRef imageDataSampleBuffer, NSError *error) {
+      [self.stillImageOutput captureStillImageAsynchronouslyFromConnection:[self.stillImageOutput connectionWithMediaType:AVMediaTypeVideo]
+                                                         completionHandler:^(CMSampleBufferRef imageDataSampleBuffer, NSError *error) {
 
         if (imageDataSampleBuffer) {
           NSData *imageData = [AVCaptureStillImageOutput jpegStillImageNSDataRepresentation:imageDataSampleBuffer];
@@ -611,7 +615,6 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
             }
           }
           CGImageRelease(CGImage);
-
           // Erase metadata orientation
           [imageMetadata removeObjectForKey:(NSString *)kCGImagePropertyOrientation];
           // Erase stupid TIFF stuff
@@ -629,8 +632,11 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
           // And write
           CGImageDestinationFinalize(destination);
           CFRelease(destination);
-
-          [self saveImage:rotatedImageData target:target metadata:imageMetadata resolve:resolve reject:reject];
+          UIImage *tempImage =  [UIImage imageWithData:rotatedImageData];
+           NSLog(@"take picture old size %d", rotatedImageData.length);
+          NSData *imageNewData = UIImageJPEGRepresentation(tempImage,0.4);
+            NSLog(@"take picture size %d", imageNewData.length);
+          [self saveImage:imageNewData target:target metadata:imageMetadata resolve:resolve reject:reject];
 
           CGImageRelease(rotatedCGImage);
         }

@@ -121,7 +121,6 @@
     if ([[event touchesForView:self] count] > 1) {
         _multipleTouches = YES;
     }
-
 }
 
 - (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event
