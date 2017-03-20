@@ -21,6 +21,7 @@ import android.provider.MediaStore;
 import android.util.Base64;
 import android.util.Log;
 import android.view.Surface;
+import android.widget.Toast;
 
 import com.facebook.react.bridge.LifecycleEventListener;
 import com.facebook.react.bridge.Promise;
@@ -669,7 +670,7 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
                     }
                     camera.stopPreview();
                     camera.startPreview();
-                //    data = rotateBitmap(data);
+//                    data = rotateBitmap(data);
                     data = compressBitmapBytes(data , deviceOrientation);
 
                     WritableMap response = new WritableNativeMap();
@@ -754,7 +755,7 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
         }
         temp.recycle();
         int degree = readPictureDegree(file.getPath()) ;
-        Log.e("xblj","picture degree = " + degree ) ;
+        Toast.makeText(getCurrentActivity(), "read degree = " + degree , Toast.LENGTH_LONG).show();
         if(degree > 0 ){
             temp = BitmapFactory.decodeFile(file.getPath());
             Bitmap rotateBmp = rotaingImageView(degree,temp);
@@ -775,7 +776,9 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
     private byte [] compressBitmapBytes(byte []bytes , int orientation ){
         Bitmap tempBmp = BitmapFactory.decodeByteArray(bytes,0,bytes.length);
         if(orientation == RCT_CAMERA_ORIENTATION_PORTRAIT && tempBmp.getWidth()>tempBmp.getHeight()){
-            Bitmap temp = rotaingImageView(90 , tempBmp ) ;
+            int rotate = RCTCamera.getInstance().getRatation(RCT_CAMERA_TYPE_FRONT);
+
+            Bitmap temp = rotaingImageView(rotate , tempBmp ) ;
             tempBmp.recycle();
             tempBmp = temp ;
         }

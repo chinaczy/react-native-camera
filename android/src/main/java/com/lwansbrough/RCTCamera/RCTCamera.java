@@ -54,7 +54,12 @@ public class RCTCamera {
             _cameras.remove(type);
         }
     }
-
+    public int getRatation(int type){
+        CameraInfoWrapper info = _cameraInfos.get(type);
+        if(info == null)
+            return 270;
+        return _cameraInfos.get(type).rotation ;
+    }
     public int getPreviewWidth(int type) {
         CameraInfoWrapper cameraInfo = _cameraInfos.get(type);
         if (null == cameraInfo) {
