@@ -358,16 +358,23 @@ RCT_EXPORT_METHOD(changeOrientation:(NSInteger)orientation) {
 RCT_EXPORT_METHOD(capture:(NSDictionary *)options
                   resolve:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject) {
-  NSInteger captureMode = [[options valueForKey:@"mode"] intValue];
-  NSInteger captureTarget = [[options valueForKey:@"target"] intValue];
+    if(self.noPermission){
+        
+        
+    }
+    else{
+        NSInteger captureMode = [[options valueForKey:@"mode"] intValue];
+        NSInteger captureTarget = [[options valueForKey:@"target"] intValue];
+        
+        if (captureMode == RCTCameraCaptureModeStill) {
+            [self captureStill:captureTarget options:options resolve:resolve reject:reject];
+        }
+        else if (captureMode == RCTCameraCaptureModeVideo) {
+            [self captureVideo:captureTarget options:options resolve:resolve reject:reject];
+        }
 
-  if (captureMode == RCTCameraCaptureModeStill) {
-    [self captureStill:captureTarget options:options resolve:resolve reject:reject];
+    }
   }
-  else if (captureMode == RCTCameraCaptureModeVideo) {
-    [self captureVideo:captureTarget options:options resolve:resolve reject:reject];
-  }
-}
 
 RCT_EXPORT_METHOD(stopCapture) {
   if (self.movieFileOutput.recording) {
@@ -415,6 +422,9 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
 }
 
 - (void)startSession {
+    if(self.noPermission){
+        return ;
+    }
 #if TARGET_IPHONE_SIMULATOR
   return;
 #endif
@@ -485,6 +495,7 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
       for (AVCaptureDeviceInput* input in [self.session inputs]) {
         if ([input.device hasMediaType:AVMediaTypeAudio]) {
           // If an audio input has been configured we don't need to set it up again
+            self.noPermission = YES ;
           return;
         }
       }
@@ -502,33 +513,35 @@ RCT_EXPORT_METHOD(hasFlash:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRej
       captureDevice = [self deviceWithMediaType:AVMediaTypeVideo preferringPosition:self.presetCamera];
     }
 
-    if (captureDevice == nil) {
-      return;
+    if (captureDevice != nil) {
+        AVCaptureDeviceInput *captureDeviceInput = [AVCaptureDeviceInput deviceInputWithDevice:captureDevice error:&error];
+        
+        if (error || captureDeviceInput == nil) {
+            NSLog(@"%@", error);
+            self.noPermission = YES ;
+        }else{
+            
+            if (type == AVMediaTypeVideo) {
+                [self.session removeInput:self.videoCaptureDeviceInput];
+            }
+            
+            if ([self.session canAddInput:captureDeviceInput]) {
+                [self.session addInput:captureDeviceInput];
+                
+                if (type == AVMediaTypeAudio) {
+                    self.audioCaptureDeviceInput = captureDeviceInput;
+                }
+                else if (type == AVMediaTypeVideo) {
+                    self.videoCaptureDeviceInput = captureDeviceInput;
+                }
+                [self.metadataOutput setMetadataObjectTypes:self.metadataOutput.availableMetadataObjectTypes];
+            }
+
+        }
     }
-
-    AVCaptureDeviceInput *captureDeviceInput = [AVCaptureDeviceInput deviceInputWithDevice:captureDevice error:&error];
-
-    if (error || captureDeviceInput == nil) {
-      NSLog(@"%@", error);
-      return;
+    else{
+        self.noPermission = YES ;
     }
-
-    if (type == AVMediaTypeVideo) {
-      [self.session removeInput:self.videoCaptureDeviceInput];
-    }
-
-    if ([self.session canAddInput:captureDeviceInput]) {
-      [self.session addInput:captureDeviceInput];
-
-      if (type == AVMediaTypeAudio) {
-        self.audioCaptureDeviceInput = captureDeviceInput;
-      }
-      else if (type == AVMediaTypeVideo) {
-        self.videoCaptureDeviceInput = captureDeviceInput;
-      }
-      [self.metadataOutput setMetadataObjectTypes:self.metadataOutput.availableMetadataObjectTypes];
-    }
-
     [self.session commitConfiguration];
   });
 }
