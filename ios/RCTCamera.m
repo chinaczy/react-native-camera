@@ -86,6 +86,7 @@
   self.manager.previewLayer.frame = self.bounds;
   [self setBackgroundColor:[UIColor blackColor]];
     [self.manager startSession];
+    self.manager.notReadQR = false;
   [self.layer insertSublayer:self.manager.previewLayer atIndex:0];
 }
 
@@ -104,6 +105,7 @@
 - (void)removeFromSuperview
 {
   [self.manager stopSession];
+  self.manager.notReadQR = false;
   [super removeFromSuperview];
   [[NSNotificationCenter defaultCenter] removeObserver:self name:UIDeviceOrientationDidChangeNotification object:nil];
   [UIApplication sharedApplication].idleTimerDisabled = _previousIdleTimerDisabled;
