@@ -5,8 +5,12 @@
 package com.lwansbrough.RCTCamera;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
+import android.os.Environment;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.TextureView;
 import android.os.AsyncTask;
@@ -16,6 +20,11 @@ import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.EnumMap;
@@ -36,7 +45,7 @@ class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceText
     private boolean _isStarting;
     private boolean _isStopping;
     private Camera _camera;
-    private int autoFocusCount ;
+    private long autoFocusTime ;
     // concurrency lock for barcode scanner to avoid flooding the runtime
     public static volatile boolean barcodeScannerTaskLock = false;
 
@@ -129,7 +138,9 @@ class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceText
                 Camera.Parameters parameters = _camera.getParameters();
                 // set autofocus
                 List<String> focusModes = parameters.getSupportedFocusModes();
-                if (focusModes.contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)) {
+                 if(focusModes.contains(Camera.Parameters.FOCUS_MODE_AUTO)){
+                    parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
+                }else if (focusModes.contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)) {
                     parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
                 }
                 // set picture size
@@ -272,11 +283,15 @@ class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceText
         if (RCTCamera.getInstance().isBarcodeScannerEnabled() && !RCTCameraViewFinder.barcodeScannerTaskLock) {
 
             RCTCameraViewFinder.barcodeScannerTaskLock = true;
-            new ReaderAsyncTask(camera.getParameters().getPreviewSize(), data).execute();
-            autoFocusCount ++ ;
-            if(autoFocusCount >= 8)
+            new ReaderThread(camera.getParameters().getPreviewSize(), data).start();
+            long time = System.currentTimeMillis() ;
+            if(autoFocusTime == 0 ){
+                autoFocusTime = time ;
+            }
+            else if( time - autoFocusTime > 2000)
             {
-                autoFocusCount = 0 ;
+                Log.e("test","auto focus ...");
+                autoFocusTime = time  ;
                 camera.autoFocus(this);
             }
         }
@@ -288,25 +303,20 @@ class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceText
         Log.e("ReactNativeJS" , "auto focus = " + success ) ;
     }
 
-    private class ReaderAsyncTask extends AsyncTask<Void, Void, Void> {
+    private class ReaderThread extends Thread {
         private byte[] imageData;
         private final Camera.Size size;
 
-        ReaderAsyncTask(Camera.Size size, byte[] imageData) {
+        ReaderThread(Camera.Size size, byte[] imageData) {
             this.size = size;
             this.imageData = imageData;
         }
 
         @Override
-        protected Void doInBackground(Void... ignored) {
-            if (isCancelled()) {
-                return null;
-            }
-
-
+        public void run() {
             int width = size.width;
             int height = size.height;
-
+            long time = System.currentTimeMillis() ;
             // rotate for zxing if orientation is portrait
             if (RCTCamera.getInstance().getActualDeviceOrientation() == 0) {
               byte[] rotated = new byte[imageData.length];
@@ -319,9 +329,21 @@ class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceText
               height = size.width;
               imageData = rotated;
             }
+            DisplayMetrics dm = getResources().getDisplayMetrics() ;
+            float scanWidth = 240 * dm.density ;
+            int imgWidth = (int) (scanWidth * width / dm.widthPixels);
+            int imgTop = (int) (( scanWidth/2+40 )*width / dm.widthPixels);
+            int imgLeft = (int) ((width - scanWidth) / 2);
+            byte []newImg = new byte[imgWidth*imgWidth];
+            for(int i = 0 ; i < imgWidth ; i++){
+                for(int j = 0 ; j < imgWidth ; j++){
+                    newImg[i*imgWidth+j]=imageData[(i+imgTop)*width + imgLeft + j];
+
+                }
+            }
             boolean qrSuccess = false ;
             try {
-                PlanarYUVLuminanceSource source = new PlanarYUVLuminanceSource(imageData, width, height, 0, 0, width, height, false);
+                PlanarYUVLuminanceSource source = new PlanarYUVLuminanceSource(newImg, imgWidth, imgWidth, 0, 0, imgWidth, imgWidth, false);
                 BinaryBitmap bitmap = new BinaryBitmap(new HybridBinarizer(source));
                 Result result = _multiFormatReader.decodeWithState(bitmap);
                 qrSuccess = true ;
@@ -331,14 +353,20 @@ class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceText
                 event.putString("type", result.getBarcodeFormat().toString());
                 reactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class).emit("CameraBarCodeReadAndroid", event);
 
-            } catch (Throwable t) {
-                // meh
-            } finally {
-                _multiFormatReader.reset();
-                if(!qrSuccess)
-                    RCTCameraViewFinder.barcodeScannerTaskLock = false;
-                return null;
+        } catch (Throwable t) {
+            // meh
+            qrSuccess = false ;
+        } finally {
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
             }
+            Log.e("test","spend time = " +(System.currentTimeMillis() - time )) ;
+            _multiFormatReader.reset();
+            if(!qrSuccess)
+                RCTCameraViewFinder.barcodeScannerTaskLock = false;
+        }
         }
     }
 }
