@@ -358,7 +358,7 @@ class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceText
             qrSuccess = false ;
         } finally {
             try {
-                Thread.sleep(500);
+                Thread.sleep(200);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
