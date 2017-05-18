@@ -138,7 +138,7 @@ class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceText
                 Camera.Parameters parameters = _camera.getParameters();
                 // set autofocus
                 List<String> focusModes = parameters.getSupportedFocusModes();
-                 if(focusModes.contains(Camera.Parameters.FOCUS_MODE_AUTO)){
+                 if(RCTCamera.getInstance().isBarcodeScannerEnabled()&&focusModes.contains(Camera.Parameters.FOCUS_MODE_AUTO)){
                     parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
                 }else if (focusModes.contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)) {
                     parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
