@@ -7,13 +7,16 @@ package com.lwansbrough.RCTCamera;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Point;
 import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
 import android.os.Environment;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.Display;
 import android.view.TextureView;
 import android.os.AsyncTask;
+import android.view.WindowManager;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.ReactContext;
@@ -48,7 +51,7 @@ class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceText
     private long autoFocusTime ;
     // concurrency lock for barcode scanner to avoid flooding the runtime
     public static volatile boolean barcodeScannerTaskLock = false;
-
+    public static final String TAG ="xb_camera";
     // reader instance for the barcode scanner
     private final MultiFormatReader _multiFormatReader = new MultiFormatReader();
 
@@ -140,6 +143,13 @@ class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceText
                 List<String> focusModes = parameters.getSupportedFocusModes();
                  if(RCTCamera.getInstance().isBarcodeScannerEnabled()&&focusModes.contains(Camera.Parameters.FOCUS_MODE_AUTO)){
                     parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
+                     WindowManager manager = (WindowManager) getContext().getSystemService(Context.WINDOW_SERVICE);
+                     Display display = manager.getDefaultDisplay();
+                     Point theScreenResolution = new Point();
+                     display.getSize(theScreenResolution);
+                     Point bestPreviewSize = findBestPreviewSizeValue(parameters, theScreenResolution);
+                     if(bestPreviewSize!=null)
+                        parameters.setPreviewSize(bestPreviewSize.x , bestPreviewSize.y);
                 }else if (focusModes.contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)) {
                     parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
                 }
@@ -175,7 +185,81 @@ class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceText
             }
         }
     }
+    private static final int MIN_PREVIEW_PIXELS = 480 * 320; // normal screen
+    private static final double MAX_ASPECT_DISTORTION = 0.15;
+    public static Point findBestPreviewSizeValue(Camera.Parameters parameters, Point screenResolution) {
 
+        List<Camera.Size> rawSupportedSizes = parameters.getSupportedPreviewSizes();
+        if (rawSupportedSizes == null) {
+            Log.w(TAG, "Device returned no supported preview sizes; using default");
+            Camera.Size defaultSize = parameters.getPreviewSize();
+            if (defaultSize == null) {
+                throw new IllegalStateException("Parameters contained no preview size!");
+            }
+            return new Point(defaultSize.width, defaultSize.height);
+        }
+
+        if (Log.isLoggable(TAG, Log.INFO)) {
+            StringBuilder previewSizesString = new StringBuilder();
+            for (Camera.Size size : rawSupportedSizes) {
+                previewSizesString.append(size.width).append('x').append(size.height).append(' ');
+            }
+            Log.i(TAG, "Supported preview sizes: " + previewSizesString);
+        }
+
+        double screenAspectRatio = screenResolution.x / (double) screenResolution.y;
+
+        // Find a suitable size, with max resolution
+        int maxResolution = 0;
+        Camera.Size maxResPreviewSize = null;
+        for (Camera.Size size : rawSupportedSizes) {
+            int realWidth = size.width;
+            int realHeight = size.height;
+            int resolution = realWidth * realHeight;
+            if (resolution < MIN_PREVIEW_PIXELS) {
+                continue;
+            }
+
+            boolean isCandidatePortrait = realWidth < realHeight;
+            int maybeFlippedWidth = isCandidatePortrait ? realHeight : realWidth;
+            int maybeFlippedHeight = isCandidatePortrait ? realWidth : realHeight;
+            double aspectRatio = maybeFlippedWidth / (double) maybeFlippedHeight;
+            double distortion = Math.abs(aspectRatio - screenAspectRatio);
+            if (distortion > MAX_ASPECT_DISTORTION) {
+                continue;
+            }
+
+            if (maybeFlippedWidth == screenResolution.x && maybeFlippedHeight == screenResolution.y) {
+                Point exactPoint = new Point(realWidth, realHeight);
+                Log.i(TAG, "Found preview size exactly matching screen size: " + exactPoint);
+                return exactPoint;
+            }
+
+            // Resolution is suitable; record the one with max resolution
+            if (resolution > maxResolution) {
+                maxResolution = resolution;
+                maxResPreviewSize = size;
+            }
+        }
+
+        // If no exact match, use largest preview size. This was not a great idea on older devices because
+        // of the additional computation needed. We're likely to get here on newer Android 4+ devices, where
+        // the CPU is much more powerful.
+        if (maxResPreviewSize != null) {
+            Point largestSize = new Point(maxResPreviewSize.width, maxResPreviewSize.height);
+            Log.i(TAG, "Using largest suitable preview size: " + largestSize);
+            return largestSize;
+        }
+
+        // If there is nothing at all suitable, return current preview size
+        Camera.Size defaultPreview = parameters.getPreviewSize();
+        if (defaultPreview == null) {
+            throw new IllegalStateException("Parameters contained no preview size!");
+        }
+        Point defaultSize = new Point(defaultPreview.width, defaultPreview.height);
+        Log.i(TAG, "No suitable preview sizes, using default: " + defaultSize);
+        return defaultSize;
+    }
     synchronized private void stopCamera() {
         if (!_isStopping) {
             _isStopping = true;
@@ -297,7 +381,6 @@ class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceText
         }
 
     }
-
     @Override
     public void onAutoFocus(boolean success, Camera camera) {
         Log.e("ReactNativeJS" , "auto focus = " + success ) ;
@@ -311,7 +394,32 @@ class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceText
             this.size = size;
             this.imageData = imageData;
         }
+        public Bitmap rawByteArray2RGBABitmap2(byte[] data, int width, int height) {
+            int frameSize = width * height;
+            int[] rgba = new int[frameSize];
 
+            for (int i = 0; i < height; i++)
+                for (int j = 0; j < width; j++) {
+                    int y = (0xff & ((int) data[i * width + j]));
+                    int u = (0xff & ((int) data[frameSize + (i >> 1) * width + (j & ~1) + 0]));
+                    int v = (0xff & ((int) data[frameSize + (i >> 1) * width + (j & ~1) + 1]));
+                    y = y < 16 ? 16 : y;
+
+                    int r = Math.round(1.164f * (y - 16) + 1.596f * (v - 128));
+                    int g = Math.round(1.164f * (y - 16) - 0.813f * (v - 128) - 0.391f * (u - 128));
+                    int b = Math.round(1.164f * (y - 16) + 2.018f * (u - 128));
+
+                    r = r < 0 ? 0 : (r > 255 ? 255 : r);
+                    g = g < 0 ? 0 : (g > 255 ? 255 : g);
+                    b = b < 0 ? 0 : (b > 255 ? 255 : b);
+
+                    rgba[i * width + j] = 0xff000000 + (b << 16) + (g << 8) + r;
+                }
+
+            Bitmap bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+            bmp.setPixels(rgba, 0 , width, 0, 0, width, height);
+            return bmp;
+        }
         @Override
         public void run() {
             int width = size.width;
@@ -329,21 +437,25 @@ class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceText
               height = size.width;
               imageData = rotated;
             }
-            DisplayMetrics dm = getResources().getDisplayMetrics() ;
-            float scanWidth = 240 * dm.density ;
-            int imgWidth = (int) (scanWidth * width / dm.widthPixels);
-            int imgTop = (int) (( scanWidth/2+40 )*width / dm.widthPixels);
-            int imgLeft = (int) ((width - scanWidth) / 2);
-            byte []newImg = new byte[imgWidth*imgWidth];
-            for(int i = 0 ; i < imgWidth ; i++){
-                for(int j = 0 ; j < imgWidth ; j++){
-                    newImg[i*imgWidth+j]=imageData[(i+imgTop)*width + imgLeft + j];
 
-                }
-            }
+//            DisplayMetrics dm = getResources().getDisplayMetrics() ;
+//
+//            float scanWidth = 240 * dm.density ;
+//			float imgScale = width / dm.widthPixels ;
+//            int imgWidth = (int) (scanWidth * imgScale);
+//            int imgTop = imgWidth / 2 ;
+//            int imgLeft = (int) ((width - imgWidth) / 2);
+//			Log.e("test","width  = " + dm.widthPixels +" img width = " + width  +" img height = "+height +" img top3 " + imgTop +" img left = " + imgLeft ) ;
+//            byte []newImg = new byte[imgWidth*imgWidth];
+//            for(int i = 0 ; i < imgWidth ; i++){
+//                for(int j = 0 ; j < imgWidth ; j++){
+//                    newImg[i*imgWidth+j]=imageData[(i+imgTop)*width + imgLeft + j];
+//
+//                }
+//            }
             boolean qrSuccess = false ;
             try {
-                PlanarYUVLuminanceSource source = new PlanarYUVLuminanceSource(newImg, imgWidth, imgWidth, 0, 0, imgWidth, imgWidth, false);
+                PlanarYUVLuminanceSource source = new PlanarYUVLuminanceSource(imageData, width, height, 0, 0, width, height, false);
                 BinaryBitmap bitmap = new BinaryBitmap(new HybridBinarizer(source));
                 Result result = _multiFormatReader.decodeWithState(bitmap);
                 qrSuccess = true ;
@@ -357,11 +469,6 @@ class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceText
             // meh
             qrSuccess = false ;
         } finally {
-            try {
-                Thread.sleep(200);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
             Log.e("test","spend time = " +(System.currentTimeMillis() - time )) ;
             _multiFormatReader.reset();
             if(!qrSuccess)
